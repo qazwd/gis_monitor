@@ -1,0 +1,1527 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GIS人车监控系统</title>
+    <!-- 添加天地图 API -->
+    <script src="https://api.tianditu.gov.cn/api?v=4.0&tk=6e31f8b5fdc0b4c08926d9cb712b931d"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* 保持原有样式不变 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Microsoft YaHei', sans-serif;
+        }
+        
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            background: #f0f2f5;
+        }
+        
+        header {
+            background: linear-gradient(90deg, #2c3e50, #4a6491);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        .logo i {
+            margin-right: 10px;
+            font-size: 1.8rem;
+        }
+        
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        .sidebar {
+            width: 350px;
+            background: white;
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .control-panel {
+            margin-bottom: 25px;
+        }
+        
+        .panel-title {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            color: #2c3e50;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #3498db;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .toggle-form {
+            background: none;
+            border: none;
+            color: #3498db;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        
+        .tabs {
+            display: flex;
+            margin-bottom: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        
+        .tab {
+            padding: 10px;
+            flex: 1;
+            text-align: center;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .tab.active {
+            background: #3498db;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .form-container {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .form-container.active {
+            display: block;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .coordinate-inputs {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .coordinate-inputs input {
+            flex: 1;
+        }
+        
+        .btn {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+        
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2980b9;
+        }
+        
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+        
+        .btn-edit {
+            background: #f39c12;
+            color: white;
+        }
+        
+        .btn-edit:hover {
+            background: #d35400;
+        }
+        
+        .list-container {
+            flex: 1;
+            overflow-y: auto;
+        }
+        
+        .list-item {
+            background: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .list-item:hover {
+            background: #f0f7ff;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        .list-item.highlighted {
+            background: #e3f2fd;
+            border-left: 4px solid #3498db;
+        }
+        
+        .item-info {
+            flex: 1;
+        }
+        
+        .item-info h4 {
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        
+        .item-info p {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+            margin-bottom: 3px;
+        }
+        
+        .item-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .map-container {
+            flex: 1;
+            position: relative;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .legend-icon {
+            width: 24px;
+            height: 24px;
+            margin-right: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .status-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #2ecc71;
+            margin-right: 8px;
+        }
+        
+        .search-box {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            display: flex;
+        }
+        
+        .search-box input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 200px;
+            margin-right: 8px;
+        }
+        
+        .highlighted-marker {
+            filter: drop-shadow(0 0 8px #ffeb3b);
+            z-index: 1000;
+        }
+
+        .coordinate-display {
+        padding: 8px 12px;
+        background: rgba(255, 255, 255, 0.8);
+        border-radius: 4px;
+        font-size: 14px;
+        box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+        }
+
+        .crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 1000;
+        }
+        
+        .crosshair-vertical, .crosshair-horizontal {
+            position: absolute;
+            background-color: rgb(0, 55, 255);
+        }
+        
+        .crosshair-vertical {
+            width: 1px;
+            height: 30px;
+            top: -15px;
+            left: -1px;
+        }
+        
+        .crosshair-horizontal {
+            width: 30px;
+            height: 1px;
+            top: -1px;
+            left: -15px;
+        }
+        
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: 40%;
+            }
+            
+            .map-container {
+                width: 100%;
+                height: 60%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <i class="fas fa-map-marked-alt"></i>
+            <span>GIS人车监控系统</span>
+        </div>
+        <div class="header-info">
+            <span id="current-time"></span>
+        </div>
+    </header>
+    
+    <div class="main-container">
+        <div class="sidebar">
+            <div class="control-panel">
+                <h2 class="panel-title">
+                    <span>监控列表</span>
+                    <button class="toggle-form" id="toggle-management">管理</button>
+                </h2>
+                
+                <div class="tabs">
+                    <div class="tab active" data-tab="person">人员监控</div>
+                    <div class="tab" data-tab="vehicle">车辆监控</div>
+                </div>
+                
+                <div class="form-container" id="person-form">
+                    <h3>人员管理</h3>
+                    <div class="form-group">
+                        <label for="person-name">姓名</label>
+                        <input type="text" id="person-name" placeholder="输入姓名">
+                    </div>
+                    <div class="form-group">
+                        <label for="person-gender">性别</label>
+                        <select id="person-gender">
+                            <option value="男">男</option>
+                            <option value="女">女</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="person-phone">电话</label>
+                        <input type="text" id="person-phone" placeholder="输入电话号码">
+                    </div>
+                    <div class="form-group">
+                        <label for="person-purpose">到访目的</label>
+                        <input type="text" id="person-purpose" placeholder="输入到访目的">
+                    </div>
+                    <div class="form-group">
+                        <label for="person-location">位置坐标（留空使用地图中心）</label>
+                        <div class="coordinate-inputs">
+                            <input type="number" step="0.000001" id="person-latitude" placeholder="纬度">
+                            <input type="number" step="0.000001" id="person-longitude" placeholder="经度">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <button class="btn btn-primary" id="add-person">添加人员</button>
+                        <button class="btn btn-edit" id="update-person" style="display:none;">更新信息</button>
+                        <button class="btn btn-danger" id="cancel-edit" style="display:none;">取消编辑</button>
+                    </div>
+                </div>
+                
+                <div class="form-container" id="vehicle-form">
+                    <h3>车辆管理</h3>
+                    <div class="form-group">
+                        <label for="vehicle-plate">车牌号码</label>
+                        <input type="text" id="vehicle-plate" placeholder="输入车牌号码">
+                    </div>
+                    <div class="form-group">
+                        <label for="vehicle-driver">驾车人姓名</label>
+                        <input type="text" id="vehicle-driver" placeholder="输入驾车人姓名">
+                    </div>
+                    <div class="form-group">
+                        <label for="vehicle-phone">驾车人电话</label>
+                        <input type="text" id="vehicle-phone" placeholder="输入驾车人电话">
+                    </div>
+                    <div class="form-group">
+                        <label for="vehicle-purpose">到访目的</label>
+                        <input type="text" id="vehicle-purpose" placeholder="输入到访目的">
+                    </div>
+                    <div class="form-group">
+                        <label for="vehicle-location">位置坐标（留空使用地图中心）</label>
+                        <div class="coordinate-inputs">
+                            <input type="number" step="0.000001" id="vehicle-latitude" placeholder="纬度">
+                            <input type="number" step="0.000001" id="vehicle-longitude" placeholder="经度">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <button class="btn btn-primary" id="add-vehicle">添加车辆</button>
+                        <button class="btn btn-edit" id="update-vehicle" style="display:none;">更新信息</button>
+                        <button class="btn btn-danger" id="cancel-edit-vehicle" style="display:none;">取消编辑</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="list-container">
+                <div id="person-list">
+                    <!-- 人员列表将通过JS动态生成 -->
+                </div>
+                <div id="vehicle-list" style="display: none;">
+                    <!-- 车辆列表将通过JS动态生成 -->
+                </div>
+            </div>
+        </div>
+        
+        <div class="map-container">
+            <div id="map"></div>
+            
+            <div class="search-box">
+                <input type="text" id="search-input" placeholder="搜索人员或车辆...">
+                <button class="btn btn-primary" id="search-btn"><i class="fas fa-search"></i></button>
+            </div>
+            
+            <div class="legend">
+                <h3>图例</h3>
+                <div class="legend-item">
+                    <div class="legend-icon">
+                        <i class="fas fa-male" style="color: #3498db; font-size: 20px;"></i>
+                    </div>
+                    <span>人员</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-icon">
+                        <i class="fas fa-car" style="color: #e74c3c; font-size: 20px;"></i>
+                    </div>
+                    <span>车辆</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-icon">
+                        <i class="fas fa-star" style="color: #ffeb3b; font-size: 20px;"></i>
+                    </div>
+                    <span>高亮目标</span>
+                </div>
+            </div>
+            
+            <div class="status-indicator">
+                <div class="status-dot"></div>
+                <span>系统运行中</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        // 初始化地图
+        const map = L.map('map').setView([39.9042, 116.4074], 13);
+        
+        // 添加天地图矢量底图
+        const tdtVec = L.tileLayer('https://t{s}.tianditu.gov.cn/vec_w/wmts?service=wmts&request=GetTile&version=1.0.0&layer=vec&style=default&format=tiles&tilematrixset=w&tilecol={x}&tilerow={y}&tilematrix={z}&tk=6e31f8b5fdc0b4c08926d9cb712b931d', {
+            subdomains: ['0', '1', '2', '3', '4', '5', '6', '7'],
+            attribution: '© <a href="https://www.tianditu.gov.cn/">天地图</a>',
+            maxZoom: 18
+        }).addTo(map);
+
+        // 添加十字准星
+        const crosshair = L.DomUtil.create('div', 'crosshair');
+        const verticalLine = L.DomUtil.create('div', 'crosshair-vertical', crosshair);
+        const horizontalLine = L.DomUtil.create('div', 'crosshair-horizontal', crosshair);
+        
+        map.getContainer().appendChild(crosshair);
+
+        // 添加天地图矢量注记
+        const tdtCva = L.tileLayer('https://t{s}.tianditu.gov.cn/cva_w/wmts?service=wmts&request=GetTile&version=1.0.0&layer=cva&style=default&format=tiles&tilematrixset=w&tilecol={x}&tilerow={y}&tilematrix={z}&tk=6e31f8b5fdc0b4c08926d9cb712b931d', {
+            subdomains: ['0', '1', '2', '3', '4', '5', '6', '7'],
+            maxZoom: 18
+        }).addTo(map);
+
+        // 显示鼠标点击处坐标（默认为地图中心点坐标）
+        const coordinateDisplay = L.control({ position: 'bottomleft' });
+
+        coordinateDisplay.onAdd = function(map) {
+            const div = L.DomUtil.create('div', 'coordinate-display');
+            // 显示地图中心点坐标
+            const center = map.getCenter();
+            div.innerHTML = `<strong>坐标:</strong> ${center.lat.toFixed(6)}, ${center.lng.toFixed(6)}`;
+            return div;
+        };
+
+        coordinateDisplay.addTo(map);
+
+        // 鼠标点击地图时更新坐标显示
+        map.on('click', function(e) {
+            const display = document.querySelector('.coordinate-display');
+            if (display) {
+                display.innerHTML = `<strong>坐标:</strong> ${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
+            }
+            
+            // 获取当前激活的表单，自动填充点击的坐标
+            const activeTab = document.querySelector('.tab.active').dataset.tab;
+            if (activeTab === 'person' && document.getElementById('toggle-management').textContent === '隐藏') {
+                document.getElementById('person-latitude').value = e.latlng.lat.toFixed(6);
+                document.getElementById('person-longitude').value = e.latlng.lng.toFixed(6);
+            } else if (activeTab === 'vehicle' && document.getElementById('toggle-management').textContent === '隐藏') {
+                document.getElementById('vehicle-latitude').value = e.latlng.lat.toFixed(6);
+                document.getElementById('vehicle-longitude').value = e.latlng.lng.toFixed(6);
+            }
+        });
+
+        // 地图移动时更新中心点坐标显示
+        map.on('moveend', function() {
+            const center = map.getCenter();
+            const display = document.querySelector('.coordinate-display');
+            if (display) {
+                display.innerHTML = `<strong>坐标:</strong> ${center.lat.toFixed(6)}, ${center.lng.toFixed(6)}`;
+            }
+        });
+
+        // 更新坐标显示
+        function updateCoordinateDisplay(latlng) {
+            const display = document.querySelector('.coordinate-display');
+            if (display) {
+                display.innerHTML = `<strong>坐标:</strong> ${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}`;
+            }
+        }
+
+        // 存储地图上的标记
+        let markers = {
+            people: [],
+            vehicles: []
+        };
+
+        // 从地图移除所有标记
+        function removeAllMarkers() {
+            markers.people.forEach(marker => map.removeLayer(marker));
+            markers.vehicles.forEach(marker => map.removeLayer(marker));
+            markers.people = [];
+            markers.vehicles = [];
+        }
+
+        // 实时更新坐标数据
+        async function updateCoordinates() {
+            try {
+                // 加载最新数据但不立即刷新标记
+                const [newPeople, newVehicles] = await Promise.all([
+                    fetchPeopleData(),
+                    fetchVehiclesData()
+                ]);
+
+                // 更新人员标记
+                newPeople.forEach(person => {
+                    const existingMarker = markers.people.find(m => m.id === person.id);
+                    const newPosition = L.latLng(person.latitude, person.longitude);
+                    
+                    if (existingMarker) {
+                        // 如果位置有变化才更新
+                        if (!existingMarker.marker.getLatLng().equals(newPosition)) {
+                            existingMarker.marker.setLatLng(newPosition);
+                            // 更新坐标显示
+                            updateCoordinateDisplay(newPosition);
+                        }
+                        // 更新弹窗内容（关键修复）
+                        existingMarker.marker.setPopupContent(`
+                            <strong>${person.name}</strong><br>
+                            性别: ${person.gender}<br>
+                            电话: ${person.phone}<br>
+                            目的: ${person.purpose}<br>
+                            坐标: ${person.latitude.toFixed(6)}, ${person.longitude.toFixed(6)}
+                        `);
+                        // 更新本地人员数据（关键修复）
+                        const index = people.findIndex(p => p.id === person.id);
+                        if (index !== -1) {
+                            people[index] = {
+                                ...person,
+                                position: [person.latitude, person.longitude]
+                            };
+                        }
+                    } else {
+                        // 新增标记
+                        addPersonToMap(person);
+                        // 添加到本地数组
+                        people.push({
+                            ...person,
+                            position: [person.latitude, person.longitude]
+                        });
+                    }
+                });
+                // 移除已删除的人员数据
+                people = people.filter(p => newPeople.some(np => np.id === p.id));
+                // 重新渲染人员列表
+                renderPeopleList();
+
+                // 更新车辆标记
+                newVehicles.forEach(vehicle => {
+                    const existingMarker = markers.vehicles.find(m => m.id === vehicle.id);
+                    const newPosition = L.latLng(vehicle.latitude, vehicle.longitude);
+                    
+                    if (existingMarker) {
+                        // 如果位置有变化才更新
+                        if (!existingMarker.marker.getLatLng().equals(newPosition)) {
+                            existingMarker.marker.setLatLng(newPosition);
+                            // 更新坐标显示
+                            updateCoordinateDisplay(newPosition);
+                        }
+                        // 更新弹窗内容（关键修复）
+                        existingMarker.marker.setPopupContent(`
+                            <strong>${vehicle.plate}</strong><br>
+                            司机: ${vehicle.driver}<br>
+                            电话: ${vehicle.phone}<br>
+                            目的: ${vehicle.purpose}<br>
+                            坐标: ${vehicle.latitude.toFixed(6)}, ${vehicle.longitude.toFixed(6)}
+                        `);
+                        // 更新本地车辆数据（关键修复）
+                        const index = vehicles.findIndex(v => v.id === vehicle.id);
+                        if (index !== -1) {
+                            vehicles[index] = {
+                                ...vehicle,
+                                position: [vehicle.latitude, vehicle.longitude]
+                            };
+                        }
+                    } else {
+                        // 新增标记
+                        addVehicleToMap(vehicle);
+                        // 添加到本地数组
+                        vehicles.push({
+                            ...vehicle,
+                            position: [vehicle.latitude, vehicle.longitude]
+                        });
+                    }
+                });
+                // 移除已删除的车辆数据（关键修复）
+                vehicles = vehicles.filter(v => newVehicles.some(nv => nv.id === v.id));
+                // 重新渲染车辆列表（关键修复）
+                renderVehicleList();
+            } catch (error) {
+                console.error('更新坐标数据失败:', error);
+            }
+        }
+
+        // 分离数据获取函数
+        async function fetchPeopleData() {
+            const response = await fetch('http://192.168.1.17:8000/api/persons/');
+            const data = await response.json();
+            return data.map(person => ({
+                ...person,
+                position: [person.latitude, person.longitude]
+            }));
+        }
+
+        async function fetchVehiclesData() {
+            const response = await fetch('http://192.168.1.17:8000/api/vehicles/');
+            const data = await response.json();
+            return data.map(vehicle => ({
+                ...vehicle,
+                position: [vehicle.latitude, vehicle.longitude]
+            }));
+        }
+
+        // 初始化加载数据
+        loadPeople();
+        loadVehicles();
+
+        // 每 5 秒更新一次数据
+        setInterval(updateCoordinates, 5000);
+
+        // 初始化人员和车辆数据
+        let people = [];
+        let vehicles = [];
+
+        // 加载数据
+        async function loadPeople() {
+            try {
+                const response = await fetch('http://192.168.1.17:8000/api/persons/');
+                const data = await response.json();
+                people = data.map(person => ({
+                    ...person,
+                    position:[person.latitude, person.longitude]
+                }));
+                renderPeopleList();
+                people.forEach(person => addPersonToMap(person));
+            } catch (error) {
+                console.error('加载人员数据失败:', error);
+                people = [
+                    {id: 1, name: "张三", gender: "男", phone: "13800000001", purpose: "商务洽谈", position: [39.9142, 116.4074] },
+                    {id: 2, name: "李四", gender: "男", phone: "13800000002", purpose: "货物运输", position: [39.9242, 116.4074] },
+                    {id: 3, name: "王五", gender: "男", phone: "13800000003", purpose: "人员接送", position: [39.8942, 116.3874] },
+                    {id: 4, name: "赵六", gender: "男", phone: "13800000004", purpose: "设备配送", position: [39.8842, 116.4074] },
+                    {id: 5, name: "钱七", gender: "男", phone: "13800000005", purpose: "会议服务", position: [39.9142, 116.4474] },
+                ]
+                renderPeopleList();
+                people.forEach(person => addPersonToMap(person));
+            }
+        }
+
+        async function loadVehicles() {
+            try {
+                const response = await fetch('http://192.168.1.17:8000/api/vehicles/');
+                const data = await response.json();
+                vehicles = data.map(vehicle => ({
+                    ...vehicle,
+                    position:[vehicle.latitude, vehicle.longitude]
+                }));
+                renderVehicleList();
+                vehicles.forEach(vehicle => addVehicleToMap(vehicle));
+            } catch (error) {
+                console.error('加载车辆数据失败:', error);
+                vehicles = [
+                    {id: 1, plate: "京A12345", driver: "张三", phone: "13800000001", purpose: "商务洽谈", position: [39.9142, 116.4074] },
+                    {id: 2, plate: "京B23456", driver: "李四", phone: "13800000002", purpose: "货物运输", position: [39.9242, 116.4074] },
+                    {id: 3, plate: "京C34567", driver: "王五", phone: "13800000003", purpose: "人员接送", position: [39.8942, 116.3874] },
+                    {id: 4, plate: "京D45678", driver: "赵六", phone: "13800000004", purpose: "设备配送", position: [39.8842, 116.4074] },
+                    {id: 5, plate: "京E56789", driver: "钱七", phone: "13800000005", purpose: "会议服务", position: [39.9142, 116.4474] },
+                ]
+                renderVehicleList();
+                vehicles.forEach(vehicle => addVehicleToMap(vehicle));
+            }
+        }
+        
+        // 添加人员到地图
+        function addPersonToMap(person) {
+            const markerIcon = L.divIcon({
+                html: '<i class="fas fa-male" style="color: #3498db; font-size: 24px;"></i>',
+                className: '',
+                iconSize: [24, 24]
+            });
+            
+            const marker = L.marker(person.position, { icon: markerIcon }).addTo(map);
+            const popupContent = `
+                <strong>${person.name}</strong><br>
+                性别: ${person.gender}<br>
+                电话: ${person.phone}<br>
+                目的: ${person.purpose}<br>
+                坐标: ${person.position[0].toFixed(6)}, ${person.position[1].toFixed(6)}
+            `;
+            marker.bindPopup(popupContent);
+            
+            // 标记弹窗是否由悬停打开
+            marker._isHoverOpen = false;
+            
+            // 鼠标悬停显示弹窗
+            marker.on('mouseover', function() {
+                this._isHoverOpen = true;
+                this.openPopup();
+            });
+            
+            // 鼠标离开关闭弹窗（仅当是悬停打开的情况）
+            marker.on('mouseout', function() {
+                if (this._isHoverOpen) {
+                    this.closePopup();
+                    this._isHoverOpen = false;
+                }
+            });
+            
+            // 点击打开弹窗时标记为非悬停状态
+            marker.on('click', function() {
+                this._isHoverOpen = false;
+            });
+            
+            markers.people.push({ id: person.id, marker });
+        }
+        
+        // 添加车辆到地图
+        function addVehicleToMap(vehicle) {
+            const markerIcon = L.divIcon({
+                html: '<i class="fas fa-car" style="color: #e74c3c; font-size: 24px;"></i>',
+                className: '',
+                iconSize: [24, 24]
+            });
+            
+            const marker = L.marker(vehicle.position, { icon: markerIcon }).addTo(map);
+            const popupContent = `
+                <strong>${vehicle.plate}</strong><br>
+                司机: ${vehicle.driver}<br>
+                电话: ${vehicle.phone}<br>
+                目的: ${vehicle.purpose}<br>
+                坐标: ${vehicle.position[0].toFixed(6)}, ${vehicle.position[1].toFixed(6)}
+            `;
+            marker.bindPopup(popupContent);
+            
+            // 标记弹窗是否由悬停打开
+            marker._isHoverOpen = false;
+            
+            // 鼠标悬停显示弹窗
+            marker.on('mouseover', function() {
+                this._isHoverOpen = true;
+                this.openPopup();
+            });
+            
+            // 鼠标离开关闭弹窗（仅当是悬停打开的情况）
+            marker.on('mouseout', function() {
+                if (this._isHoverOpen) {
+                    this.closePopup();
+                    this._isHoverOpen = false;
+                }
+            });
+            
+            // 点击打开弹窗时标记为非悬停状态
+            marker.on('click', function() {
+                this._isHoverOpen = false;
+            });
+            
+            markers.vehicles.push({ id: vehicle.id, marker });
+        }
+        
+        // 渲染人员列表
+        function renderPeopleList() {
+            const container = document.getElementById('person-list');
+            container.innerHTML = '';
+            
+            people.forEach(person => {
+                const item = document.createElement('div');
+                item.className = 'list-item';
+                item.innerHTML = `
+                    <div class="item-info">
+                        <h4>${person.name}</h4>
+                        <p>性别: ${person.gender}</p>
+                        <p>电话: ${person.phone}</p>
+                        <p>目的: ${person.purpose}</p>
+                        <p>坐标: ${person.position[0].toFixed(6)}, ${person.position[1].toFixed(6)}</p>
+                    </div>
+                    <div class="item-actions">
+                        <button class="btn btn-edit edit-person" data-id="${person.id}"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-danger delete-person" data-id="${person.id}"><i class="fas fa-trash"></i></button>
+                    </div>
+                `;
+                container.appendChild(item);
+                
+                // 点击列表项定位到地图
+                item.addEventListener('click', (e) => {
+                    if (!e.target.closest('.item-actions')) {
+                        map.setView(person.position, 16);
+                        highlightMarker('people', person.id);
+                    }
+                });
+            });
+            
+            // 添加编辑和删除事件监听
+            document.querySelectorAll('.edit-person').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    editPerson(parseInt(btn.dataset.id));
+                });
+            });
+            
+            document.querySelectorAll('.delete-person').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deletePerson(parseInt(btn.dataset.id));
+                });
+            });
+        }
+        
+        // 渲染车辆列表
+        function renderVehicleList() {
+            const container = document.getElementById('vehicle-list');
+            container.innerHTML = '';
+            
+            vehicles.forEach(vehicle => {
+                const item = document.createElement('div');
+                item.className = 'list-item';
+                item.innerHTML = `
+                    <div class="item-info">
+                        <h4>${vehicle.plate}</h4>
+                        <p>司机: ${vehicle.driver}</p>
+                        <p>电话: ${vehicle.phone}</p>
+                        <p>目的: ${vehicle.purpose}</p>
+                        <p>坐标: ${vehicle.position[0].toFixed(6)}, ${vehicle.position[1].toFixed(6)}</p>
+                    </div>
+                    <div class="item-actions">
+                        <button class="btn btn-edit edit-vehicle" data-id="${vehicle.id}"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-danger delete-vehicle" data-id="${vehicle.id}"><i class="fas fa-trash"></i></button>
+                    </div>
+                `;
+                container.appendChild(item);
+                
+                // 点击列表项定位到地图
+                item.addEventListener('click', (e) => {
+                    if (!e.target.closest('.item-actions')) {
+                        map.setView(vehicle.position, 16);
+                        highlightMarker('vehicles', vehicle.id);
+                    }
+                });
+            });
+            
+            // 添加编辑和删除事件监听
+            document.querySelectorAll('.edit-vehicle').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    editVehicle(parseInt(btn.dataset.id));
+                });
+            });
+            
+            document.querySelectorAll('.delete-vehicle').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deleteVehicle(parseInt(btn.dataset.id));
+                });
+            });
+        }
+        
+        // 当前编辑的人员/车辆ID
+        let editingId = null;
+        
+        // 当前高亮的目标
+        let highlightedTarget = null;
+        
+        // 高亮标记
+        function highlightMarker(type, id) {
+            // 移除之前的高亮
+            if (highlightedTarget) {
+                const { type: prevType, id: prevId } = highlightedTarget;
+                const marker = markers[prevType].find(m => m.id === prevId);
+                if (marker) {
+                    marker.marker._icon.classList.remove('highlighted-marker');
+                }
+            }
+            
+            // 添加新的高亮
+            const marker = markers[type].find(m => m.id === id);
+            if (marker) {
+                marker.marker._icon.classList.add('highlighted-marker');
+                highlightedTarget = { type, id };
+            }
+        }
+        
+        // 更新当前时间
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('current-time').textContent = now.toLocaleString();
+        }
+        
+        setInterval(updateTime, 1000);
+        updateTime();
+        
+        // 管理面板显示/隐藏
+        document.getElementById('toggle-management').addEventListener('click', function() {
+            const personForm = document.getElementById('person-form');
+            const vehicleForm = document.getElementById('vehicle-form');
+            const isVisible = personForm.style.display === 'block' || vehicleForm.style.display === 'block';
+            
+            if (isVisible) {
+                personForm.style.display = 'none';
+                vehicleForm.style.display = 'none';
+                this.textContent = '管理';
+                cancelEditPerson();
+                cancelEditVehicle();
+            } else {
+                const activeTab = document.querySelector('.tab.active').dataset.tab;
+                if (activeTab === 'person') {
+                    personForm.style.display = 'block';
+                    vehicleForm.style.display = 'none';
+                } else {
+                    personForm.style.display = 'none';
+                    vehicleForm.style.display = 'block';
+                }
+                this.textContent = '隐藏';
+            }
+        });
+        
+        // 选项卡切换
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                
+                if (tab.dataset.tab === 'person') {
+                    document.getElementById('person-list').style.display = 'block';
+                    document.getElementById('vehicle-list').style.display = 'none';
+                    
+                    // 只有管理面板显示时才切换表单
+                    if (document.getElementById('toggle-management').textContent === '隐藏') {
+                        document.getElementById('person-form').style.display = 'block';
+                        document.getElementById('vehicle-form').style.display = 'none';
+                    }
+                } else {
+                    document.getElementById('person-list').style.display = 'none';
+                    document.getElementById('vehicle-list').style.display = 'block';
+                    
+                    // 只有管理面板显示时才切换表单
+                    if (document.getElementById('toggle-management').textContent === '隐藏') {
+                        document.getElementById('person-form').style.display = 'none';
+                        document.getElementById('vehicle-form').style.display = 'block';
+                    }
+                }
+            });
+        });
+        
+        // 处理坐标输入 - 确保是有效的经纬度
+        function validateCoordinates(lat, lng) {
+            if (!lat || !lng) return null;
+            
+            const latitude = parseFloat(lat);
+            const longitude = parseFloat(lng);
+            
+            // 简单验证：纬度范围 -90 到 90，经度范围 -180 到 180
+            if (latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180) {
+                return [latitude, longitude];
+            }
+            
+            return null;
+        }
+        
+        // 获取坐标（优先使用手动输入，否则使用地图中心）
+        function getCoordinates(latInputId, lngInputId) {
+            const latInput = document.getElementById(latInputId);
+            const lngInput = document.getElementById(lngInputId);
+            
+            // 检查是否有手动输入的坐标
+            if (latInput.value && lngInput.value) {
+                const coords = validateCoordinates(latInput.value, lngInput.value);
+                if (coords) {
+                    return coords;
+                } else {
+                    alert('请输入有效的坐标值（纬度：-90 至 90，经度：-180 至 180）');
+                    return null;
+                }
+            }
+            
+            // 使用地图中心坐标
+            const center = map.getCenter();
+            return [center.lat, center.lng];
+        }
+        
+        // 添加人员
+        document.getElementById('add-person').addEventListener('click', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('person-name').value;
+            const gender = document.getElementById('person-gender').value;
+            const phone = document.getElementById('person-phone').value;
+            const phonePattern = /^1[3-9]\d{9}$/;
+            
+            if (!phonePattern.test(phone)) {
+                alert('请输入有效的中国大陆手机号码');
+                return;
+            }
+            
+            const purpose = document.getElementById('person-purpose').value;
+            if (!name || !phone || !purpose) {
+                alert('请填写完整信息');
+                return;
+            }
+            
+            // 获取坐标（手动输入或地图中心）
+            const coordinates = getCoordinates('person-latitude', 'person-longitude');
+            if (!coordinates) return;
+            
+            try {
+                const response = await fetch('http://192.168.1.17:8000/api/persons/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        name,
+                        gender,
+                        phone,
+                        purpose,
+                        latitude: coordinates[0],
+                        longitude: coordinates[1]
+                    })
+                });
+                
+                if (response.ok) {
+                    const newPerson = await response.json();
+                    people.push({
+                        ...newPerson,
+                        position: [newPerson.latitude, newPerson.longitude]
+                    });
+                    renderPeopleList();
+                    addPersonToMap(people[people.length - 1]);
+                    
+                    // 清空表单
+                    document.getElementById('person-name').value = '';
+                    document.getElementById('person-phone').value = '';
+                    document.getElementById('person-purpose').value = '';
+                    document.getElementById('person-latitude').value = '';
+                    document.getElementById('person-longitude').value = '';
+                } else {
+                    alert('添加失败：' + await response.text());
+                }
+            } catch (error) {
+                console.error('添加人员失败:', error);
+                alert('网络错误，添加失败');
+            }
+        });
+
+        // 编辑人员
+        function editPerson(id) {
+            const person = people.find(p => p.id === id);
+            if (!person) return;
+            
+            editingId = id;
+            
+            // 填充表单
+            document.getElementById('person-name').value = person.name;
+            document.getElementById('person-gender').value = person.gender;
+            document.getElementById('person-phone').value = person.phone;
+            document.getElementById('person-purpose').value = person.purpose;
+            document.getElementById('person-latitude').value = person.position[0];
+            document.getElementById('person-longitude').value = person.position[1];
+            
+            // 显示管理面板和切换按钮状态
+            document.getElementById('toggle-management').textContent = '隐藏';
+            document.getElementById('person-form').style.display = 'block';
+            document.getElementById('add-person').style.display = 'none';
+            document.getElementById('update-person').style.display = 'inline-block';
+            document.getElementById('cancel-edit').style.display = 'inline-block';
+        }
+
+        // 更新人员信息
+        document.getElementById('update-person').addEventListener('click', async () => {
+            if (editingId === null) return;
+            
+            const name = document.getElementById('person-name').value;
+            const gender = document.getElementById('person-gender').value;
+            const phone = document.getElementById('person-phone').value;
+            const purpose = document.getElementById('person-purpose').value;
+            
+            if (!name || !phone || !purpose) {
+                alert('请填写完整信息');
+                return;
+            }
+            
+            // 获取坐标（手动输入或地图中心）
+            const coordinates = getCoordinates('person-latitude', 'person-longitude');
+            if (!coordinates) return;
+
+            try {
+                const response = await fetch(`http://192.168.1.17:8000/api/persons/${editingId}/`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        name,
+                        gender,
+                        phone,
+                        purpose,
+                        latitude: coordinates[0],
+                        longitude: coordinates[1]
+                    })
+                });
+                
+                if (response.ok) {
+                    const updatedPerson = await response.json();
+                    // 更新本地数据
+                    const index = people.findIndex(p => p.id === editingId);
+                    if (index !== -1) {
+                        people[index] = {
+                            ...updatedPerson,
+                            position: [updatedPerson.latitude, updatedPerson.longitude]
+                        };
+                        
+                        // 更新地图标记
+                        const markerIndex = markers.people.findIndex(m => m.id === editingId);
+                        if (markerIndex !== -1) {
+                            map.removeLayer(markers.people[markerIndex].marker);
+                            markers.people.splice(markerIndex, 1);
+                        }
+                        const newMarker = addPersonToMap(people[index]);
+                        // 更新坐标显示
+                        updateCoordinateDisplay(L.latLng(people[index].latitude, people[index].longitude));
+                        
+                        renderPeopleList();
+                        cancelEditPerson();
+                    }
+                } else {
+                    alert('更新失败：' + await response.text());
+                }
+            } catch (error) {
+                console.error('更新人员失败:', error);
+                alert('网络错误，更新失败');
+            }
+        });
+        
+        // 取消编辑人员
+        document.getElementById('cancel-edit').addEventListener('click', cancelEditPerson);
+        
+        function cancelEditPerson() {
+            editingId = null;
+            
+            // 清空表单
+            document.getElementById('person-name').value = '';
+            document.getElementById('person-phone').value = '';
+            document.getElementById('person-purpose').value = '';
+            document.getElementById('person-latitude').value = '';
+            document.getElementById('person-longitude').value = '';
+            
+            // 恢复按钮状态
+            document.getElementById('add-person').style.display = 'inline-block';
+            document.getElementById('update-person').style.display = 'none';
+            document.getElementById('cancel-edit').style.display = 'none';
+        }
+        
+        // 删除人员
+        async function deletePerson(id) {
+            if (!confirm('确定要删除该人员信息吗？')) return;
+            
+            try {
+                const response = await fetch(`http://192.168.1.17:8000/api/persons/${id}/`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    // 从本地数据中移除
+                    people = people.filter(p => p.id !== id);
+                    
+                    // 从地图上移除标记
+                    const markerIndex = markers.people.findIndex(m => m.id === id);
+                    if (markerIndex !== -1) {
+                        map.removeLayer(markers.people[markerIndex].marker);
+                        markers.people.splice(markerIndex, 1);
+                    }
+                    
+                    renderPeopleList();
+                } else {
+                    alert('删除失败：' + await response.text());
+                }
+            } catch (error) {
+                console.error('删除人员失败:', error);
+                alert('网络错误，删除失败');
+            }
+        }
+        
+        // 添加车辆
+        document.getElementById('add-vehicle').addEventListener('click', async (e) => {
+            e.preventDefault();
+            const plate = document.getElementById('vehicle-plate').value;
+            const driver = document.getElementById('vehicle-driver').value;
+            const phone = document.getElementById('vehicle-phone').value;
+            const phonePattern = /^1[3-9]\d{9}$/;
+            
+            if (!phonePattern.test(phone)) {
+                alert('请输入有效的中国大陆手机号码');
+                return;
+            }
+            
+            const purpose = document.getElementById('vehicle-purpose').value;
+            if (!plate || !driver || !phone || !purpose) {
+                alert('请填写完整信息');
+                return;
+            }
+            
+            // 获取坐标（手动输入或地图中心）
+            const coordinates = getCoordinates('vehicle-latitude', 'vehicle-longitude');
+            if (!coordinates) return;
+            
+            try {
+                const response = await fetch('http://192.168.1.17:8000/api/vehicles/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        plate,
+                        driver,
+                        phone,
+                        purpose,
+                        latitude: coordinates[0],
+                        longitude: coordinates[1]
+                    })
+                });
+                
+                if (response.ok) {
+                    const newVehicle = await response.json();
+                    vehicles.push({
+                        ...newVehicle,
+                        position: [newVehicle.latitude, newVehicle.longitude]
+                    });
+                    renderVehicleList();
+                    addVehicleToMap(vehicles[vehicles.length - 1]);
+                    
+                    // 清空表单
+                    document.getElementById('vehicle-plate').value = '';
+                    document.getElementById('vehicle-driver').value = '';
+                    document.getElementById('vehicle-phone').value = '';
+                    document.getElementById('vehicle-purpose').value = '';
+                    document.getElementById('vehicle-latitude').value = '';
+                    document.getElementById('vehicle-longitude').value = '';
+                } else {
+                    alert('添加失败：' + await response.text());
+                }
+            } catch (error) {
+                console.error('添加车辆失败:', error);
+                alert('网络错误，添加失败');
+            }
+        });
+
+        // 编辑车辆
+        function editVehicle(id) {
+            const vehicle = vehicles.find(v => v.id === id);
+            if (!vehicle) return;
+            
+            editingId = id;
+            
+            // 填充表单
+            document.getElementById('vehicle-plate').value = vehicle.plate;
+            document.getElementById('vehicle-driver').value = vehicle.driver;
+            document.getElementById('vehicle-phone').value = vehicle.phone;
+            document.getElementById('vehicle-purpose').value = vehicle.purpose;
+            document.getElementById('vehicle-latitude').value = vehicle.position[0];
+            document.getElementById('vehicle-longitude').value = vehicle.position[1];
+            
+            // 显示管理面板和切换按钮状态
+            document.getElementById('toggle-management').textContent = '隐藏';
+            document.getElementById('vehicle-form').style.display = 'block';
+            document.getElementById('add-vehicle').style.display = 'none';
+            document.getElementById('update-vehicle').style.display = 'inline-block';
+            document.getElementById('cancel-edit-vehicle').style.display = 'inline-block';
+        }
+
+        // 更新车辆信息
+        document.getElementById('update-vehicle').addEventListener('click', async () => {
+            if (editingId === null) return;
+            
+            const plate = document.getElementById('vehicle-plate').value;
+            const driver = document.getElementById('vehicle-driver').value;
+            const phone = document.getElementById('vehicle-phone').value;
+            const purpose = document.getElementById('vehicle-purpose').value;
+            
+            if (!plate || !driver || !phone || !purpose) {
+                alert('请填写完整信息');
+                return;
+            }
+            
+            // 获取坐标（手动输入或地图中心）
+            const coordinates = getCoordinates('vehicle-latitude', 'vehicle-longitude');
+            if (!coordinates) return;
+
+            try {
+                const response = await fetch(`http://192.168.1.17:8000/api/vehicles/${editingId}/`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        plate,
+                        driver,
+                        phone,
+                        purpose,
+                        latitude: coordinates[0],
+                        longitude: coordinates[1]
+                    })
+                });
+                
+                if (response.ok) {
+                    const updatedVehicle = await response.json();
+                    // 更新本地数据
+                    const index = vehicles.findIndex(v => v.id === editingId);
+                    if (index !== -1) {
+                        vehicles[index] = {
+                            ...updatedVehicle,
+                            position: [updatedVehicle.latitude, updatedVehicle.longitude]
+                        };
+                        
+                        // 更新地图标记
+                        const markerIndex = markers.vehicles.findIndex(m => m.id === editingId);
+                        if (markerIndex !== -1) {
+                            map.removeLayer(markers.vehicles[markerIndex].marker);
+                            markers.vehicles.splice(markerIndex, 1);
+                        }
+                        addVehicleToMap(vehicles[index]);
+                        
+                        renderVehicleList();
+                        cancelEditVehicle();
+                    }
+                } else {
+                    alert('更新失败：' + await response.text());
+                }
+            } catch (error) {
+                console.error('更新车辆失败:', error);
+                alert('网络错误，更新失败');
+            }
+        });
+        
+        // 取消编辑车辆
+        document.getElementById('cancel-edit-vehicle').addEventListener('click', cancelEditVehicle);
+        
+        function cancelEditVehicle() {
+            editingId = null;
+            
+            // 清空表单
+            document.getElementById('vehicle-plate').value = '';
+            document.getElementById('vehicle-driver').value = '';
+            document.getElementById('vehicle-phone').value = '';
+            document.getElementById('vehicle-purpose').value = '';
+            document.getElementById('vehicle-latitude').value = '';
+            document.getElementById('vehicle-longitude').value = '';
+            
+            // 恢复按钮状态
+            document.getElementById('add-vehicle').style.display = 'inline-block';
+            document.getElementById('update-vehicle').style.display = 'none';
+            document.getElementById('cancel-edit-vehicle').style.display = 'none';
+        }
+        
+        // 删除车辆
+        async function deleteVehicle(id) {
+            if (!confirm('确定要删除该车辆信息吗？')) return;
+            
+            try {
+                const response = await fetch(`http://192.168.1.17:8000/api/vehicles/${id}/`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    // 从本地数据中移除
+                    vehicles = vehicles.filter(v => v.id !== id);
+                    
+                    // 从地图上移除标记
+                    const markerIndex = markers.vehicles.findIndex(m => m.id === id);
+                    if (markerIndex !== -1) {
+                        map.removeLayer(markers.vehicles[markerIndex].marker);
+                        markers.vehicles.splice(markerIndex, 1);
+                    }
+                    
+                    renderVehicleList();
+                } else {
+                    alert('删除失败：' + await response.text());
+                }
+            } catch (error) {
+                console.error('删除车辆失败:', error);
+                alert('网络错误，删除失败');
+            }
+        }
+        
+        // 搜索功能
+        document.getElementById('search-btn').addEventListener('click', performSearch);
+        document.getElementById('search-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+        
+        function performSearch() {
+            const query = document.getElementById('search-input').value.trim().toLowerCase();
+            if (!query) return;
+            
+            // 搜索人员
+            const personMatch = people.find(p => 
+                p.name.toLowerCase().includes(query) || 
+                p.phone.includes(query) ||
+                p.purpose.toLowerCase().includes(query)
+            );
+            
+            if (personMatch) {
+                map.setView(personMatch.position, 16);
+                highlightMarker('people', personMatch.id);
+                document.querySelector('.tab[data-tab="person"]').click();
+                return;
+            }
+            
+            // 搜索车辆
+            const vehicleMatch = vehicles.find(v => 
+                v.plate.toLowerCase().includes(query) || 
+                v.driver.toLowerCase().includes(query) ||
+                v.phone.includes(query) ||
+                v.purpose.toLowerCase().includes(query)
+            );
+            
+            if (vehicleMatch) {
+                map.setView(vehicleMatch.position, 16);
+                highlightMarker('vehicles', vehicleMatch.id);
+                document.querySelector('.tab[data-tab="vehicle"]').click();
+                return;
+            }
+            
+            alert('未找到匹配的人员或车辆');
+        }
+    </script>
+</body>
+</html>
